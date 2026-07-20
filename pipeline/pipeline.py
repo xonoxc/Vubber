@@ -1,18 +1,16 @@
-from typing import Self
+from typing import Any, Self
 
 from stages.stage_interface import Stage
 
 
 class Pipeline:
     def __init__(self) -> None:
-        self._steps: list[Stage] = []
+        self._steps: list[Stage[Any, Any]] = []
 
-    # adds a new step to the pipeline
-    def add(self, stage: Stage) -> Self:
+    def add(self, stage: Stage[Any, Any]) -> Self:
         self._steps.append(stage)
         return self
 
-    # executing each step one at a time sequentially.
     def run(self, artifact: object) -> object:
         current = artifact
 

@@ -1,9 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-# a stage is a single step in a pipeline
-class Stage(ABC):
-    # main method to execute the step
+class Stage[I, O](ABC):
     @abstractmethod
-    def execute(self, artifact: object) -> object:
-        pass
+    def execute(self, artifact: I) -> O:
+        raise NotImplementedError
