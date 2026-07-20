@@ -2,10 +2,12 @@ import typer
 
 from domain.artifacts.url import YoutubeURL
 from pipeline.cons import Pipeline
+from providers.faster_whisper.transcriber import FasterWhisperTranscriber
 from providers.ffmpeg.extractor import FFmpegAudioExtractor
 from providers.yt_downloader import YtDlpDownloader
 from stages.audio_extraction_stage import AudioExtractionStage
 from stages.download_stage import DownloadStage
+from stages.transcription_stage import TranscriptionStage
 
 app = typer.Typer(name="vubber", help="YouTube video dubbing pipeline")
 
@@ -14,7 +16,12 @@ app = typer.Typer(name="vubber", help="YouTube video dubbing pipeline")
 def dub(url: str = typer.Argument(help="YouTube video URL")) -> None:
     # Download, transcribe, translate, and dub a YouTube video
 
-    sequence = Pipeline().add(DownloadStage(YtDlpDownloader())).add(AudioExtractionStage(FFmpegAudioExtractor()))
+    sequence = (
+        Pipeline()
+        .add(DownloadStage(YtDlpDownloader()))
+        .add(AudioExtractionStage(FFmpegAudioExtractor()))
+        .add(TranscriptionStage(FasterWhisperTranscriber()))
+    )
 
     yt_url = None
     try:

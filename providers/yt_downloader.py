@@ -1,25 +1,26 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
 
 from domain.artifacts.video_artifact import VideoArtifact
+from domain.constants import VIDEOS_DIR
 from domain.ports.downloader import Downloader
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from yt_dlp import _Params  # type: ignore[reportPrivateUsage]
 
     from domain.artifacts.url import YoutubeURL
 
 
-# Downloads a video from a given URL and returns a video artifact.
 class YtDlpDownloader(Downloader):
     def __init__(
         self,
-        output_dir: Path = Path("artifacts"),
+        output_dir: Path = VIDEOS_DIR,
     ) -> None:
         self._output_dir = output_dir
         self._output_dir.mkdir(parents=True, exist_ok=True)

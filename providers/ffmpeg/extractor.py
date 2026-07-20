@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import ffmpeg
 
 from domain.artifacts.audio_artifact import AudioArtifact
+from domain.constants import AUDIO_DIR
 from domain.ports.audio_extractor import AudioExtractor
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from domain.artifacts.video_artifact import VideoArtifact
 
 
@@ -20,13 +22,10 @@ class AudioExtractionError(Exception):
 class FFmpegAudioExtractor(AudioExtractor):
     def __init__(
         self,
-        output_dir: Path = Path("artifacts"),
+        output_dir: Path = AUDIO_DIR,
     ) -> None:
-        self._output_dir = output_dir / "audio"
-        self._output_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
+        self._output_dir = output_dir
+        self._output_dir.mkdir(parents=True, exist_ok=True)
 
     def extract(self, video: VideoArtifact) -> AudioArtifact:
         stem = video.path.stem
