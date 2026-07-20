@@ -9,7 +9,7 @@ class YoutubeURL(BaseModel):
     def validate_youtube(cls, value: AnyHttpUrl) -> AnyHttpUrl:
         host = value.host or ""
 
-        if host not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+        if host not in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}:
             raise ValueError(
                 "Only YouTube URLs are supported.",
             )
