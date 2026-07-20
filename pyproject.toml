@@ -43,6 +43,7 @@ dev = [
 target-version = "py313"
 line-length = 120
 src = []
+extend-exclude = ["stubs"]
 
 [tool.ruff.lint]
 select = [
@@ -77,5 +78,6 @@ pythonVersion = "3.13"
 pythonPlatform = "Linux"
 typeCheckingMode = "strict"
 include = ["cli", "config", "domain", "pipeline", "providers", "stages", "utils", "tests"]
+stubPath = "stubs"
 venvPath = "."
 venv = ".venv"
