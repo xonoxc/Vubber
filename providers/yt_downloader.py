@@ -29,10 +29,19 @@ class YtDlpDownloader(Downloader):
         output_template = str(self._output_dir / "%(id)s.%(ext)s")
 
         opts: _Params = {
-            "format": "bestvideo+bestaudio/best",
+            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
             "merge_output_format": "mp4",
             "outtmpl": output_template,
             "noplaylist": True,
+            "retries": 3,
+            "fragment_retries": 3,
+            "http_headers": {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                ),
+            },
         }
 
         # releasing yt dlp resource after user using "with"
