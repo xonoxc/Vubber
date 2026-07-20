@@ -21,11 +21,14 @@ dependencies = [
 ]
 
 [project.scripts]
-vubber = "vubber.cli.app:app"
+vubber = "cli.app:app"
 
 [build-system]
 requires = ["uv_build>=0.11.28,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+namespace = true
 
 [dependency-groups]
 dev = [
@@ -38,7 +41,7 @@ dev = [
 [tool.ruff]
 target-version = "py313"
 line-length = 120
-src = ["src"]
+src = []
 
 [tool.ruff.lint]
 select = [
@@ -60,7 +63,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["vubber"]
+known-first-party = ["cli", "config", "domain", "pipeline", "providers", "stages", "utils"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -71,6 +74,6 @@ addopts = "-v --tb=short"
 pythonVersion = "3.13"
 pythonPlatform = "Linux"
 typeCheckingMode = "strict"
-include = ["src", "tests"]
+include = ["cli", "config", "domain", "pipeline", "providers", "stages", "utils", "tests"]
 venvPath = "."
 venv = ".venv"

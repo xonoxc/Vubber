@@ -1,6 +1,6 @@
 from typing import Self
 
-from vubber.stages.stage_interface import Stage
+from stages.stage_interface import Stage
 
 
 class Pipeline:

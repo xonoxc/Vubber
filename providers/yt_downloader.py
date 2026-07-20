@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
 
-from vubber.domain.artifacts.video_artifact import VideoArtifact
-from vubber.domain.ports.downloader import Downloader
+from domain.artifacts.video_artifact import VideoArtifact
+from domain.ports.downloader import Downloader
 
 if TYPE_CHECKING:
     from yt_dlp import _Params  # type: ignore[reportPrivateUsage]
 
-    from vubber.domain.artifacts.url import YoutubeURL
+    from domain.artifacts.url import YoutubeURL
 
 
 # Downloads a video from a given URL and returns a video artifact.

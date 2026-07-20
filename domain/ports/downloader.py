@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-from vubber.domain.artifacts.url import YoutubeURL
-from vubber.domain.artifacts.video_artifact import VideoArtifact
+from domain.artifacts.url import YoutubeURL
+from domain.artifacts.video_artifact import VideoArtifact
 
 
 class Downloader(ABC):
