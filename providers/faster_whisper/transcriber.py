@@ -35,11 +35,13 @@ class FasterWhisperTranscriber(Transcriber):
     def _ensure_model(self) -> WhisperModel:
         if self._model is None:
             log.info("transcription.model.loading", model=self._model_size)
+
             self._model = WhisperModel(
                 self._model_size,
                 device=self._device,
                 compute_type=self._compute_type,
             )
+
             log.info("transcription.model.loaded", model=self._model_size)
         return self._model
 
@@ -58,11 +60,7 @@ class FasterWhisperTranscriber(Transcriber):
                 for seg in segments_iter
             ]
 
-            log.info(
-                "transcription.done",
-                language=info.language,
-                segments=len(segments),
-            )
+            log.info("transcription.done", language=info.language, segments=len(segments))
 
             TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
             output_path = TRANSCRIPTS_DIR / f"{audio.path.stem}.json"
