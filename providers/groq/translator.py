@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from typing import TYPE_CHECKING, Any, cast
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from groq import Groq
+from pydantic import BaseModel
 
 from domain.artifacts.localized_transcript import (
     LocalizedTranscriptArtifact,
@@ -24,43 +26,12 @@ class TranslationError(Exception):
     """Raised when translation fails."""
 
 
-_SYSTEM_PROMPT = """\
-You are a professional dubbing translator. Your job is to localize dialogue for natural spoken English.
-
-<rules>
-- Translate into natural conversational English.
-- Preserve the meaning and emotion of each line.
-- Keep sentences concise and suitable for spoken delivery.
-- Keep approximately the same speaking duration as the original.
-- Preserve timestamps exactly. Do not change start or end times.
-- Preserve segment ordering. Do not merge or split segments.
-- Do not omit any segment.
-</rules>
-
-<output_format>
-Return ONLY valid JSON. No markdown, no code fences, no explanations.
-The output MUST match this exact structure:
-
-{
-  "segments": [
-    {
-      "start": 0.0,
-      "end": 1.9,
-      "localized_text": "Hello everyone."
-    }
-  ]
-}
-
-Each segment MUST contain:
-- "start" (number) — copied exactly from input
-- "end" (number) — copied exactly from input
-- "localized_text" (string) — your translation
-
-Do NOT use any other key names. Do NOT add extra fields.
-</output_format>
-"""
-
+_TRANSLATION_PROMPT = Path(__file__).resolve().parents[2] / "domain" / "system_prompts" / "translation.xml"
 _BATCH_SIZE = 50
+
+
+class _TranslationResponse(BaseModel):
+    segments: list[LocalizedTranscriptSegment]
 
 
 class GroqTranslator(Translator):
@@ -83,13 +54,16 @@ class GroqTranslator(Translator):
             for i in range(0, len(segments), _BATCH_SIZE):
                 batch_num = i // _BATCH_SIZE + 1
                 batch = segments[i : i + _BATCH_SIZE]
+
                 log.info(
                     "translation.batch.start",
                     batch=f"{batch_num}/{total_batches}",
                     segments=len(batch),
                 )
+
                 translated = self._translate_batch(transcript.language, batch)
                 all_segments.extend(translated)
+
                 log.info(
                     "translation.batch.done",
                     batch=f"{batch_num}/{total_batches}",
@@ -127,7 +101,11 @@ class GroqTranslator(Translator):
             {
                 "language": language,
                 "segments": [
-                    {"start": s.start, "end": s.end, "text": s.text}
+                    {
+                        "start": s.start,
+                        "end": s.end,
+                        "text": s.text,
+                    }
                     for s in batch
                 ],
             },
@@ -137,80 +115,43 @@ class GroqTranslator(Translator):
         response = self._client.chat.completions.create(
             model=self._model,
             messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "system", "content": _TRANSLATION_PROMPT.read_text()},
                 {
                     "role": "user",
-                    "content": (
-                        f"Translate the following transcript into "
-                        f"{self._target_language}.\n\n{user_message}"
-                    ),
+                    "content": f"Translate the following transcript into {self._target_language}.\n\n{user_message}",
                 },
             ],
-            temperature=0.3,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "translation_response",
+                    "schema": _TranslationResponse.model_json_schema(),
+                },
+            },
+            temperature=0,
             max_tokens=8192,
         )
 
         raw = response.choices[0].message.content or ""
-        data = self._parse_response(raw)
-        return self._build_segments(batch, data)
-
-    def _parse_response(self, raw: str) -> dict[str, Any]:
-        cleaned = raw.strip()
-        if cleaned.startswith("```"):
-            lines = cleaned.split("\n")
-            lines = [line for line in lines if not line.strip().startswith("```")]
-            cleaned = "\n".join(lines)
 
         try:
-            parsed: dict[str, Any] = json.loads(cleaned)
-        except json.JSONDecodeError as exc:
-            raise TranslationError(
-                f"Malformed JSON response: {exc}",
-            ) from exc
+            parsed = _TranslationResponse.model_validate_json(
+                raw,
+            )
+        except Exception as exc:
+            raise TranslationError(f"Failed to validate LLM response: {exc}") from exc
 
-        if "segments" not in parsed:
+        if len(parsed.segments) != len(batch):
             raise TranslationError(
-                "Response missing 'segments' key",
+                f"Expected {len(batch)} segments, got {len(parsed.segments)}",
             )
 
-        if not isinstance(parsed["segments"], list):
-            raise TranslationError(
-                "'segments' is not a list",
+        return [
+            LocalizedTranscriptSegment(
+                start=original.start,
+                end=original.end,
+                original_text=original.text,
+                localized_text=segment.localized_text,
             )
-
-        return parsed
-
-    def _build_segments(
-        self,
-        batch: list[TranscriptSegment],
-        data: dict[str, Any],
-    ) -> list[LocalizedTranscriptSegment]:
-        translated = data["segments"]
-
-        if len(translated) != len(batch):
-            raise TranslationError(
-                f"Expected {len(batch)} segments, got {len(translated)}",
-            )
-
-        segments: list[LocalizedTranscriptSegment] = []
-        for original, tr in zip(batch, translated, strict=True):
-            if not isinstance(tr, dict):
-                raise TranslationError("Segment is not a dict")
-
-            seg = cast("dict[str, Any]", tr)
-            for key in ("start", "end", "localized_text"):
-                if key not in seg:
-                    raise TranslationError(
-                        f"Segment missing '{key}'",
-                    )
-
-            segments.append(
-                LocalizedTranscriptSegment(
-                    start=original.start,
-                    end=original.end,
-                    original_text=original.text,
-                    localized_text=str(seg["localized_text"]),
-                ),
-            )
-
-        return segments
+            for original, segment in zip(batch, parsed.segments, strict=True)
+        ]

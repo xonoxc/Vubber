@@ -36,7 +36,13 @@ def dub(url: str = typer.Argument(help="YouTube video URL")) -> None:
         .add(DownloadStage(YtDlpDownloader()))
         .add(AudioExtractionStage(FFmpegAudioExtractor()))
         .add(TranscriptionStage(FasterWhisperTranscriber()))
-        .add(TranslationStage(GroqTranslator(api_key=os.getenv("GROQ_API_KEY"))))
+        .add(
+            TranslationStage(
+                GroqTranslator(
+                    api_key=os.getenv("GROQ_API_KEY"),
+                )
+            )
+        )
         .add(SpeechSynthesisStage(EdgeTTSSynthesizer()))
     )
 
@@ -63,7 +69,9 @@ def synthesize(
         raise typer.Exit(code=1)
 
     try:
-        raw = json.loads(path.read_text())
+        raw = json.loads(
+            path.read_text(),
+        )
     except json.JSONDecodeError as exc:
         log.error("synthesize.invalid_json", path=transcript_path)
         raise typer.Exit(code=1) from exc
@@ -85,7 +93,9 @@ def synthesize(
         segments=segments,
     )
 
-    pipeline = Pipeline().add(SpeechSynthesisStage(EdgeTTSSynthesizer()))
+    pipeline = Pipeline().add(
+        SpeechSynthesisStage(EdgeTTSSynthesizer()),
+    )
     pipeline.run(artifact)
 
     log.info("synthesize.done", transcript=transcript_path)

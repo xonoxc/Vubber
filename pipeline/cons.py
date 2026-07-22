@@ -20,7 +20,9 @@ class Pipeline:
         for step in self._steps:
             name = type(step).__name__
             log.info("stage.start", stage=name)
-            current = step.execute(current)
+            current = step.execute(
+                current,
+            )
             log.info("stage.done", stage=name)
 
         return current

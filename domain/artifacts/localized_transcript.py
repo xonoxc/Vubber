@@ -1,13 +1,14 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from pydantic import BaseModel
 
-@dataclass(slots=True)
-class LocalizedTranscriptSegment:
+
+class LocalizedTranscriptSegment(BaseModel):
     start: float
     end: float
-    original_text: str
-    localized_text: str
+    original_text: str = ""
+    localized_text: str = ""
 
 
 @dataclass(slots=True)
