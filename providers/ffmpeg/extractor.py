@@ -29,7 +29,7 @@ class FFmpegAudioExtractor(AudioExtractor):
 
     def extract(self, video: VideoArtifact) -> AudioArtifact:
         stem = video.path.stem
-        output_path = self._output_dir / f"{stem}.wav"
+        output_path = self._output_dir.joinpath(f"{stem}.wav")
 
         if output_path.exists():
             return AudioArtifact(path=output_path)

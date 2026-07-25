@@ -5,8 +5,8 @@ import structlog
 
 
 def _clean_format(
-    logger: Any,
-    method_name: str,
+    _logger: Any,
+    _method_name: str,
     event_dict: MutableMapping[str, Any],
 ) -> str:
     event = str(event_dict.get("event", ""))

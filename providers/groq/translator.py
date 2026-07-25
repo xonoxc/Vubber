@@ -25,7 +25,7 @@ class TranslationError(Exception):
     """Raised when translation fails."""
 
 
-_TRANSLATION_PROMPT = Path(__file__).resolve().parents[2] / "domain" / "system_prompts" / "translation.xml"
+_TRANSLATION_PROMPT = Path(__file__).resolve().parents[2].joinpath("domain", "system_prompts", "translation.xml")
 _BATCH_SIZE = 51
 
 
@@ -46,7 +46,7 @@ class GroqTranslator(Translator):
 
     def translate(self, transcript: TranscriptArtifact) -> LocalizedTranscriptArtifact:
         LOCALIZED_DIR.mkdir(parents=True, exist_ok=True)
-        output_path = LOCALIZED_DIR / f"{transcript.language}_{self._target_language}.json"
+        output_path = LOCALIZED_DIR.joinpath(f"{transcript.language}_{self._target_language}.json")
 
         if output_path.exists():
             raw = json.loads(output_path.read_text())
@@ -82,7 +82,7 @@ class GroqTranslator(Translator):
                 )
 
             LOCALIZED_DIR.mkdir(parents=True, exist_ok=True)
-            output_path = LOCALIZED_DIR / f"{transcript.language}_{self._target_language}.json"
+            output_path = LOCALIZED_DIR.joinpath(f"{transcript.language}_{self._target_language}.json")
 
             artifact = LocalizedTranscriptArtifact(
                 path=output_path,

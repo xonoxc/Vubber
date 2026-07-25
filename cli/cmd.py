@@ -71,9 +71,7 @@ def synthesize(
         raise typer.Exit(code=1)
 
     try:
-        raw = json.loads(
-            path.read_text(),
-        )
+        raw = json.loads(path.read_text())
     except json.JSONDecodeError as exc:
         log.error("synthesize.invalid_json", path=transcript_path)
         raise typer.Exit(code=1) from exc
@@ -134,13 +132,16 @@ def clean(url: str | None = typer.Argument(default=None, help="YouTube video URL
                 file.unlink()
                 deleted += 1
 
-    transcript_json = ARTIFACTS_ROOT / "transcripts" / f"{video_id}.json"
+    transcript_json = ARTIFACTS_ROOT.joinpath("transcripts", f"{video_id}.json")
     if transcript_json.exists():
         raw = json.loads(transcript_json.read_text())
         language = raw.get("language", "")
         if language:
-            localized = ARTIFACTS_ROOT / "localized" / f"{language}_English.json"
-            speech = ARTIFACTS_ROOT / "speech" / f"{language}_English.wav"
+            localized = ARTIFACTS_ROOT.joinpath(
+                "localized",
+                f"{language}_English.json",
+            )
+            speech = ARTIFACTS_ROOT.joinpath("speech", f"{language}_English.wav")
             for f in (localized, speech):
                 if f.exists():
                     f.unlink()

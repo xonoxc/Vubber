@@ -57,7 +57,7 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
         transcript: LocalizedTranscriptArtifact,
     ) -> SpeechArtifact:
         stem = transcript.path.stem
-        output_path = self._output_dir / f"{stem}.wav"
+        output_path = self._output_dir.joinpath(f"{stem}.wav")
 
         if output_path.exists():
             return SpeechArtifact(path=output_path)
@@ -72,12 +72,15 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
                 silence_needed = segment.start - cursor
 
                 if silence_needed > 0:
-                    silence_path = tmp_path / f"silence_{index:06d}.wav"
-                    self._generate_silence(silence_needed, silence_path)
+                    silence_path = tmp_path.joinpath(f"silence_{index:06d}.wav")
+                    self._generate_silence(
+                        duration=silence_needed,
+                        output_path=silence_path,
+                    )
                     timeline.append(silence_path)
 
-                mp3_path = tmp_path / f"{index:06d}.mp3"
-                wav_path = tmp_path / f"{index:06d}.wav"
+                mp3_path = tmp_path.joinpath(f"{index:06d}.mp3")
+                wav_path = tmp_path.joinpath(f"{index:06d}.wav")
 
                 log.info(
                     "speech_synthesis.segment",
@@ -88,23 +91,37 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
 
                 text = segment.localized_text.strip()
                 if not text:
-                    silence_path = tmp_path / f"empty_{index:06d}.wav"
-                    self._generate_silence(segment.end - segment.start, silence_path)
+                    silence_path = tmp_path.joinpath(f"empty_{index:06d}.wav")
+                    self._generate_silence(
+                        segment.end - segment.start,
+                        silence_path,
+                    )
                     timeline.append(silence_path)
                     cursor = segment.end
                 else:
                     self._synthesize_segment(text, mp3_path)
-                    self._convert_to_wav(mp3_path, wav_path)
+                    self._convert_to_wav(
+                        mp3_path,
+                        wav_path,
+                    )
                     timeline.append(wav_path)
                     duration = self._get_duration(wav_path)
                     cursor = segment.start + duration
 
             if not timeline:
-                self._generate_silence(0.0, output_path)
+                self._generate_silence(
+                    duration=0.0,
+                    output_path=output_path,
+                )
             else:
-                self._concatenate(timeline, output_path)
+                self._concatenate(wav_segments=timeline, output_path=output_path)
 
-        log.info("speech_synthesis.done", output=str(output_path))
+        log.info(
+            "speech_synthesis.done",
+            output=str(
+                output_path,
+            ),
+        )
         return SpeechArtifact(path=output_path)
 
     def _synthesize_segment(self, text: str, output_path: Path) -> None:
@@ -124,34 +141,45 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
                 last_exc = exc
                 if attempt < 2:
                     log.warning("speech_synthesis.retry", attempt=attempt + 1, error=str(exc))
-        raise SpeechSynthesisError(f"Edge-TTS failed after 3 attempts: {last_exc}") from last_exc
+
+        raise SpeechSynthesisError(
+            f"Edge-TTS failed after 3 attempts: {last_exc}",
+        ) from last_exc
 
     def _convert_to_wav(self, mp3_path: Path, wav_path: Path) -> None:
         try:
             (
                 ffmpeg.input(str(mp3_path))
-                .output(str(wav_path), acodec="pcm_s16le", ar=_SAMPLE_RATE, ac=1)
+                .output(
+                    str(wav_path),
+                    acodec="pcm_s16le",
+                    ar=_SAMPLE_RATE,
+                    ac=1,
+                )
                 .overwrite_output()
                 .run(capture_stdout=True, capture_stderr=True)
             )
         except ffmpeg.Error as exc:
             stderr = exc.stderr.decode() if exc.stderr else str(exc)
-            raise SpeechSynthesisError(f"FFmpeg conversion failed: {stderr}") from exc
+            raise SpeechSynthesisError(
+                f"FFmpeg conversion failed: {stderr}",
+            ) from exc
 
     def _get_duration(self, wav_path: Path) -> float:
         try:
             probe = ffmpeg.probe(str(wav_path))
-            return float(probe["streams"][0]["duration"])
+            return float(
+                probe["streams"][0]["duration"],
+            )
         except (ffmpeg.Error, KeyError, ValueError) as exc:
-            raise SpeechSynthesisError(f"Failed to probe audio duration: {exc}") from exc
+            raise SpeechSynthesisError(
+                f"Failed to probe audio duration: {exc}",
+            ) from exc
 
     def _generate_silence(self, duration: float, output_path: Path) -> None:
         try:
             (
-                ffmpeg.input(
-                    f"anullsrc=r={_SAMPLE_RATE}:cl=mono",
-                    f="lavfi",
-                )
+                ffmpeg.input(f"anullsrc=r={_SAMPLE_RATE}:cl=mono", f="lavfi")
                 .output(
                     str(output_path),
                     t=f"{duration:.3f}",
@@ -164,26 +192,34 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
             )
         except ffmpeg.Error as exc:
             stderr = exc.stderr.decode() if exc.stderr else str(exc)
-            raise SpeechSynthesisError(f"FFmpeg silence generation failed: {stderr}") from exc
+            raise SpeechSynthesisError(
+                f"FFmpeg silence generation failed: f{stderr}",
+            ) from exc
 
     def _concatenate(self, wav_segments: list[Path], output_path: Path) -> None:
         if len(wav_segments) == 1:
             self._copy_file(wav_segments[0], output_path)
             return
 
-        concat_list = output_path.parent / f"{output_path.stem}_concat.txt"
+        concat_list = output_path.parent.joinpath(f"{output_path.stem}_concat.txt")
         try:
             lines = [f"file '{seg.resolve()}'" for seg in wav_segments]
             concat_list.write_text("\n".join(lines))
             (
                 ffmpeg.input(str(concat_list), format="concat", safe=0)
-                .output(str(output_path), acodec="pcm_s16le", ar=_SAMPLE_RATE)
+                .output(
+                    str(output_path),
+                    acodec="pcm_s16le",
+                    ar=_SAMPLE_RATE,
+                )
                 .overwrite_output()
                 .run(capture_stdout=True, capture_stderr=True)
             )
         except ffmpeg.Error as exc:
             stderr = exc.stderr.decode() if exc.stderr else str(exc)
-            raise SpeechSynthesisError(f"FFmpeg concatenation failed: {stderr}") from exc
+            raise SpeechSynthesisError(
+                f"FFmpeg concatenation failed: {stderr}",
+            ) from exc
         finally:
             concat_list.unlink(missing_ok=True)
 
@@ -191,10 +227,16 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
         try:
             (
                 ffmpeg.input(str(src))
-                .output(str(dst), acodec="pcm_s16le", ar=_SAMPLE_RATE)
+                .output(
+                    str(dst),
+                    acodec="pcm_s16le",
+                    ar=_SAMPLE_RATE,
+                )
                 .overwrite_output()
                 .run(capture_stdout=True, capture_stderr=True)
             )
         except ffmpeg.Error as exc:
             stderr = exc.stderr.decode() if exc.stderr else str(exc)
-            raise SpeechSynthesisError(f"FFmpeg copy failed: {stderr}") from exc
+            raise SpeechSynthesisError(
+                f"FFmpeg copy failed: {stderr}",
+            ) from exc

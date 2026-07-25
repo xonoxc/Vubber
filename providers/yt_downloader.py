@@ -26,7 +26,7 @@ class YtDlpDownloader(Downloader):
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
     def download(self, url: YoutubeURL) -> VideoArtifact:
-        output_template = str(self._output_dir / "%(id)s.%(ext)s")
+        output_template = str(self._output_dir.joinpath("%(id)s.%(ext)s"))
 
         opts: _Params = {
             "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
@@ -55,7 +55,7 @@ class YtDlpDownloader(Downloader):
             video_id: str = info.get("id", "")
             video_ext: str = info.get("ext") or "mp4"
 
-        video_path = self._output_dir / f"{video_id}.{video_ext}"
+        video_path = self._output_dir.joinpath(f"{video_id}.{video_ext}")
         if not video_path.exists():
             raise FileNotFoundError(f"Video file not found at {video_path}")
 

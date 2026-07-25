@@ -46,8 +46,11 @@ class FasterWhisperTranscriber(Transcriber):
         return self._model
 
     def transcribe(self, audio: AudioArtifact) -> TranscriptArtifact:
-        TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
-        output_path = TRANSCRIPTS_DIR / f"{audio.path.stem}.json"
+        TRANSCRIPTS_DIR.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+        output_path = TRANSCRIPTS_DIR.joinpath(f"{audio.path.stem}.json")
 
         if output_path.exists():
             raw = json.loads(output_path.read_text())
@@ -55,7 +58,11 @@ class FasterWhisperTranscriber(Transcriber):
                 path=output_path,
                 language=raw["language"],
                 segments=[
-                    TranscriptSegment(start=s["start"], end=s["end"], text=s["text"])
+                    TranscriptSegment(
+                        start=s["start"],
+                        end=s["end"],
+                        text=s["text"],
+                    )
                     for s in raw["segments"]
                 ],
             )
@@ -63,7 +70,9 @@ class FasterWhisperTranscriber(Transcriber):
         try:
             model = self._ensure_model()
             log.info("transcription.start", file=audio.path.name)
-            segments_iter, info = model.transcribe(str(audio.path))
+            segments_iter, info = model.transcribe(
+                str(audio.path),
+            )
 
             segments = [
                 TranscriptSegment(
@@ -76,8 +85,11 @@ class FasterWhisperTranscriber(Transcriber):
 
             log.info("transcription.done", language=info.language, segments=len(segments))
 
-            TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
-            output_path = TRANSCRIPTS_DIR / f"{audio.path.stem}.json"
+            TRANSCRIPTS_DIR.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            output_path = TRANSCRIPTS_DIR.joinpath(f"{audio.path.stem}.json")
 
             artifact = TranscriptArtifact(
                 path=output_path,

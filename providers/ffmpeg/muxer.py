@@ -30,7 +30,7 @@ class FFmpegVideoMuxer(VideoMuxer):
         video: VideoArtifact,
         speech: SpeechArtifact,
     ) -> VideoArtifact:
-        output_path = self._output_dir / f"{video.path.stem}_dubbed.mp4"
+        output_path = self._output_dir.joinpath(f"{video.path.stem}_dubbed.mp4")
 
         if output_path.exists():
             return VideoArtifact(path=output_path)
