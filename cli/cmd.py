@@ -1,11 +1,13 @@
 import json
 import os
+import shutil
 from pathlib import Path
 
 import typer
 
 from domain.artifacts.localized_transcript import LocalizedTranscriptArtifact, LocalizedTranscriptSegment
 from domain.artifacts.url import YoutubeURL
+from domain.constants import ARTIFACTS_ROOT
 from pipeline.cons import Pipeline
 from providers.edge_tts.synthesizer import EdgeTTSSynthesizer
 from providers.faster_whisper.transcriber import FasterWhisperTranscriber
@@ -27,6 +29,7 @@ log = get_logger()
 def register(app: typer.Typer) -> None:
     app.command()(dub)
     app.command()(synthesize)
+    app.command()(clean)
     app.command()(version)
 
 
@@ -102,3 +105,45 @@ def synthesize(
 
 def version() -> None:
     typer.echo("vubber 0.1.0")
+
+
+def clean(url: str | None = typer.Argument(default=None, help="YouTube video URL to clean artifacts for")) -> None:
+    if url is None:
+        if ARTIFACTS_ROOT.exists():
+            shutil.rmtree(ARTIFACTS_ROOT)
+            log.info("clean.done", scope="all")
+        else:
+            log.info("clean.nothing")
+        return
+
+    yt_url = None
+    try:
+        yt_url = YoutubeURL.model_validate({"value": url})
+    except Exception as exc:
+        log.error("url.invalid", url=url)
+        raise typer.Exit(code=1) from exc
+
+    video_id = yt_url.video_id
+    deleted = 0
+
+    for directory in ARTIFACTS_ROOT.iterdir():
+        if not directory.is_dir():
+            continue
+        for file in directory.iterdir():
+            if video_id in file.stem:
+                file.unlink()
+                deleted += 1
+
+    transcript_json = ARTIFACTS_ROOT / "transcripts" / f"{video_id}.json"
+    if transcript_json.exists():
+        raw = json.loads(transcript_json.read_text())
+        language = raw.get("language", "")
+        if language:
+            localized = ARTIFACTS_ROOT / "localized" / f"{language}_English.json"
+            speech = ARTIFACTS_ROOT / "speech" / f"{language}_English.wav"
+            for f in (localized, speech):
+                if f.exists():
+                    f.unlink()
+                    deleted += 1
+
+    log.info("clean.done", video_id=video_id, files=deleted)

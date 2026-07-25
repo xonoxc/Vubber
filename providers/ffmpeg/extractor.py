@@ -31,6 +31,9 @@ class FFmpegAudioExtractor(AudioExtractor):
         stem = video.path.stem
         output_path = self._output_dir / f"{stem}.wav"
 
+        if output_path.exists():
+            return AudioArtifact(path=output_path)
+
         try:
             (
                 ffmpeg.input(str(video.path))

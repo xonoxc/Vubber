@@ -1,3 +1,5 @@
+from urllib.parse import parse_qs, urlparse
+
 from pydantic import AnyHttpUrl, BaseModel, HttpUrl, field_validator
 
 
@@ -15,3 +17,15 @@ class YoutubeURL(BaseModel):
             )
 
         return value
+
+    @property
+    def video_id(self) -> str:
+        host = self.value.host or ""
+        path = self.value.path or ""
+
+        if host == "youtu.be":
+            return path.strip("/")
+
+        parsed = urlparse(str(self.value))
+        params = parse_qs(parsed.query)
+        return params["v"][0]

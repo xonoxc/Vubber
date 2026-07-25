@@ -46,6 +46,20 @@ class FasterWhisperTranscriber(Transcriber):
         return self._model
 
     def transcribe(self, audio: AudioArtifact) -> TranscriptArtifact:
+        TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = TRANSCRIPTS_DIR / f"{audio.path.stem}.json"
+
+        if output_path.exists():
+            raw = json.loads(output_path.read_text())
+            return TranscriptArtifact(
+                path=output_path,
+                language=raw["language"],
+                segments=[
+                    TranscriptSegment(start=s["start"], end=s["end"], text=s["text"])
+                    for s in raw["segments"]
+                ],
+            )
+
         try:
             model = self._ensure_model()
             log.info("transcription.start", file=audio.path.name)

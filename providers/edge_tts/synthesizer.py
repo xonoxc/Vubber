@@ -59,6 +59,9 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
         stem = transcript.path.stem
         output_path = self._output_dir / f"{stem}.wav"
 
+        if output_path.exists():
+            return SpeechArtifact(path=output_path)
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             timeline: list[Path] = []
@@ -83,12 +86,18 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
                     text=segment.localized_text[:50],
                 )
 
-                self._synthesize_segment(segment.localized_text, mp3_path)
-                self._convert_to_wav(mp3_path, wav_path)
-                timeline.append(wav_path)
-
-                duration = self._get_duration(wav_path)
-                cursor = segment.start + duration
+                text = segment.localized_text.strip()
+                if not text:
+                    silence_path = tmp_path / f"empty_{index:06d}.wav"
+                    self._generate_silence(segment.end - segment.start, silence_path)
+                    timeline.append(silence_path)
+                    cursor = segment.end
+                else:
+                    self._synthesize_segment(text, mp3_path)
+                    self._convert_to_wav(mp3_path, wav_path)
+                    timeline.append(wav_path)
+                    duration = self._get_duration(wav_path)
+                    cursor = segment.start + duration
 
             if not timeline:
                 self._generate_silence(0.0, output_path)
@@ -99,17 +108,23 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
         return SpeechArtifact(path=output_path)
 
     def _synthesize_segment(self, text: str, output_path: Path) -> None:
-        try:
-            communicate = edge_tts.Communicate(
-                text,
-                voice=self._voice,
-                rate=self._rate,
-                pitch=self._pitch,
-                volume=self._volume,
-            )
-            communicate.save_sync(str(output_path))
-        except edge_tts.exceptions.EdgeTTSException as exc:
-            raise SpeechSynthesisError(f"Edge-TTS failed for segment: {exc}") from exc
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                communicate = edge_tts.Communicate(
+                    text,
+                    voice=self._voice,
+                    rate=self._rate,
+                    pitch=self._pitch,
+                    volume=self._volume,
+                )
+                communicate.save_sync(str(output_path))
+                return
+            except edge_tts.exceptions.EdgeTTSException as exc:
+                last_exc = exc
+                if attempt < 2:
+                    log.warning("speech_synthesis.retry", attempt=attempt + 1, error=str(exc))
+        raise SpeechSynthesisError(f"Edge-TTS failed after 3 attempts: {last_exc}") from last_exc
 
     def _convert_to_wav(self, mp3_path: Path, wav_path: Path) -> None:
         try:

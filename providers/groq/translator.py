@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -27,7 +26,7 @@ class TranslationError(Exception):
 
 
 _TRANSLATION_PROMPT = Path(__file__).resolve().parents[2] / "domain" / "system_prompts" / "translation.xml"
-_BATCH_SIZE = 50
+_BATCH_SIZE = 51
 
 
 class _TranslationResponse(BaseModel):
@@ -46,6 +45,18 @@ class GroqTranslator(Translator):
         self._target_language = target_language
 
     def translate(self, transcript: TranscriptArtifact) -> LocalizedTranscriptArtifact:
+        LOCALIZED_DIR.mkdir(parents=True, exist_ok=True)
+        output_path = LOCALIZED_DIR / f"{transcript.language}_{self._target_language}.json"
+
+        if output_path.exists():
+            raw = json.loads(output_path.read_text())
+            return LocalizedTranscriptArtifact(
+                path=output_path,
+                source_language=raw["source_language"],
+                target_language=raw["target_language"],
+                segments=[LocalizedTranscriptSegment(**s) for s in raw["segments"]],
+            )
+
         try:
             all_segments: list[LocalizedTranscriptSegment] = []
             segments = transcript.segments
@@ -81,7 +92,15 @@ class GroqTranslator(Translator):
             )
 
             output_path.write_text(
-                json.dumps(asdict(artifact), indent=2, default=str),
+                json.dumps(
+                    {
+                        "path": str(output_path),
+                        "source_language": artifact.source_language,
+                        "target_language": artifact.target_language,
+                        "segments": [s.model_dump() for s in artifact.segments],
+                    },
+                    indent=2,
+                ),
             )
 
             return artifact
@@ -122,11 +141,11 @@ class GroqTranslator(Translator):
                 },
             ],
             response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "translation_response",
-                    "schema": _TranslationResponse.model_json_schema(),
-                },
+                "type": "json_object",
+                # "json_schema": {
+                #    "name": "translation_response",
+                #    "schema": _TranslationResponse.model_json_schema(),
+                # },
             },
             temperature=0,
             max_tokens=8192,
