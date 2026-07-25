@@ -10,10 +10,12 @@ from pipeline.cons import Pipeline
 from providers.edge_tts.synthesizer import EdgeTTSSynthesizer
 from providers.faster_whisper.transcriber import FasterWhisperTranscriber
 from providers.ffmpeg.extractor import FFmpegAudioExtractor
+from providers.ffmpeg.muxer import FFmpegVideoMuxer
 from providers.groq.translator import GroqTranslator
 from providers.yt_downloader import YtDlpDownloader
 from stages.audio_extraction_stage import AudioExtractionStage
 from stages.download_stage import DownloadStage
+from stages.mux_stage import MuxStage
 from stages.speech_synthesis_stage import SpeechSynthesisStage
 from stages.transcription_stage import TranscriptionStage
 from stages.translation_stage import TranslationStage
@@ -31,19 +33,16 @@ def register(app: typer.Typer) -> None:
 def dub(url: str = typer.Argument(help="YouTube video URL")) -> None:
     log.info("pipeline.start", url=url)
 
+    pipeline = Pipeline()
+    mux_stage = MuxStage(FFmpegVideoMuxer(), pipeline.state)
+
     sequence = (
-        Pipeline()
-        .add(DownloadStage(YtDlpDownloader()))
+        pipeline.add(DownloadStage(YtDlpDownloader()))
         .add(AudioExtractionStage(FFmpegAudioExtractor()))
         .add(TranscriptionStage(FasterWhisperTranscriber()))
-        .add(
-            TranslationStage(
-                GroqTranslator(
-                    api_key=os.getenv("GROQ_API_KEY"),
-                )
-            )
-        )
+        .add(TranslationStage(GroqTranslator(api_key=os.getenv("GROQ_API_KEY"))))
         .add(SpeechSynthesisStage(EdgeTTSSynthesizer()))
+        .add(mux_stage)
     )
 
     yt_url = None
