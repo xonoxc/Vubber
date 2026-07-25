@@ -33,8 +33,13 @@ def register(app: typer.Typer) -> None:
     app.command()(version)
 
 
-def dub(url: str = typer.Argument(help="YouTube video URL")) -> None:
+def dub(
+    url: str = typer.Argument(help="YouTube video URL"),
+    voice: str = typer.Option("female", help="Voice gender: male or female"),
+) -> None:
     log.info("pipeline.start", url=url)
+
+    voice_name = "en-US-GuyNeural" if voice == "male" else "en-US-AriaNeural"
 
     pipeline = Pipeline()
     mux_stage = MuxStage(FFmpegVideoMuxer(), pipeline.state)
@@ -44,7 +49,7 @@ def dub(url: str = typer.Argument(help="YouTube video URL")) -> None:
         .add(AudioExtractionStage(FFmpegAudioExtractor()))
         .add(TranscriptionStage(GroqTranscriber(api_key=os.getenv("GROQ_API_KEY"))))
         .add(TranslationStage(GroqTranslator(api_key=os.getenv("GROQ_API_KEY"))))
-        .add(SpeechSynthesisStage(EdgeTTSSynthesizer()))
+        .add(SpeechSynthesisStage(EdgeTTSSynthesizer(voice=voice_name)))
         .add(mux_stage)
     )
 
