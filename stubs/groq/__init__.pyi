@@ -23,6 +23,28 @@ class ChatCompletionResource:
 class Chat:
     completions: ChatCompletionResource
 
+class TranscriptionResponse:
+    task: str
+    language: str
+    duration: float
+    text: str
+    segments: list[dict[str, Any]]
+
+class TranscriptionResource:
+    def create(
+        self,
+        *,
+        file: tuple[str, bytes],
+        model: str,
+        language: str | None = ...,
+        response_format: str = ...,
+        temperature: float = ...,
+        **kwargs: Any,
+    ) -> TranscriptionResponse: ...
+
+class Audio:
+    transcriptions: TranscriptionResource
+
 class Groq:
     def __init__(
         self,
@@ -32,3 +54,5 @@ class Groq:
     ) -> None: ...
     @property
     def chat(self) -> Chat: ...
+    @property
+    def audio(self) -> Audio: ...

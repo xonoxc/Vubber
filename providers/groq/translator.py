@@ -46,7 +46,9 @@ class GroqTranslator(Translator):
 
     def translate(self, transcript: TranscriptArtifact) -> LocalizedTranscriptArtifact:
         LOCALIZED_DIR.mkdir(parents=True, exist_ok=True)
-        output_path = LOCALIZED_DIR.joinpath(f"{transcript.language}_{self._target_language}.json")
+        output_path = LOCALIZED_DIR.joinpath(
+            f"{transcript.language}_{self._target_language}.json",
+        )
 
         if output_path.exists():
             raw = json.loads(output_path.read_text())
@@ -142,10 +144,6 @@ class GroqTranslator(Translator):
             ],
             response_format={
                 "type": "json_object",
-                # "json_schema": {
-                #    "name": "translation_response",
-                #    "schema": _TranslationResponse.model_json_schema(),
-                # },
             },
             temperature=0,
             max_tokens=8192,
@@ -154,23 +152,30 @@ class GroqTranslator(Translator):
         raw = response.choices[0].message.content or ""
 
         try:
-            parsed = _TranslationResponse.model_validate_json(
-                raw,
-            )
+            parsed = _TranslationResponse.model_validate_json(raw)
         except Exception as exc:
-            raise TranslationError(f"Failed to validate LLM response: {exc}") from exc
+            raise TranslationError(
+                f"Failed to validate LLM response: {exc}",
+            ) from exc
 
         if len(parsed.segments) != len(batch):
-            raise TranslationError(
-                f"Expected {len(batch)} segments, got {len(parsed.segments)}",
+            log.warning(
+                "translation.segment_count_mismatch",
+                expected=len(batch),
+                got=len(parsed.segments),
             )
+
+        translated_by_start: dict[float, str] = {
+            seg.start: seg.localized_text
+            for seg in parsed.segments
+        }
 
         return [
             LocalizedTranscriptSegment(
                 start=original.start,
                 end=original.end,
                 original_text=original.text,
-                localized_text=segment.localized_text,
+                localized_text=translated_by_start.get(original.start, original.text),
             )
-            for original, segment in zip(batch, parsed.segments, strict=True)
+            for original in batch
         ]

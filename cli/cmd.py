@@ -10,9 +10,9 @@ from domain.artifacts.url import YoutubeURL
 from domain.constants import ARTIFACTS_ROOT
 from pipeline.cons import Pipeline
 from providers.edge_tts.synthesizer import EdgeTTSSynthesizer
-from providers.faster_whisper.transcriber import FasterWhisperTranscriber
 from providers.ffmpeg.extractor import FFmpegAudioExtractor
 from providers.ffmpeg.muxer import FFmpegVideoMuxer
+from providers.groq.transcriber import GroqTranscriber
 from providers.groq.translator import GroqTranslator
 from providers.yt_downloader import YtDlpDownloader
 from stages.audio_extraction_stage import AudioExtractionStage
@@ -42,7 +42,7 @@ def dub(url: str = typer.Argument(help="YouTube video URL")) -> None:
     sequence = (
         pipeline.add(DownloadStage(YtDlpDownloader()))
         .add(AudioExtractionStage(FFmpegAudioExtractor()))
-        .add(TranscriptionStage(FasterWhisperTranscriber()))
+        .add(TranscriptionStage(GroqTranscriber(api_key=os.getenv("GROQ_API_KEY"))))
         .add(TranslationStage(GroqTranslator(api_key=os.getenv("GROQ_API_KEY"))))
         .add(SpeechSynthesisStage(EdgeTTSSynthesizer()))
         .add(mux_stage)
