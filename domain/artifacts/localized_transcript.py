@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
@@ -6,6 +5,7 @@ from pydantic import BaseModel, model_validator
 
 
 class LocalizedTranscriptSegment(BaseModel):
+    id: int
     start: float
     end: float
     original_text: str = ""
@@ -21,9 +21,24 @@ class LocalizedTranscriptSegment(BaseModel):
         return self
 
 
-@dataclass(slots=True)
-class LocalizedTranscriptArtifact:
+class LocalizedTranscriptArtifact(BaseModel):
     path: Path
     source_language: str
     target_language: str
     segments: list[LocalizedTranscriptSegment]
+
+    @model_validator(mode="after")
+    def validate_segments(self) -> Self:
+        if not self.segments:
+            raise ValueError("Transcript must contain segments")
+
+        ids = [segment.id for segment in self.segments]
+
+        if len(ids) != len(set(ids)):
+            raise ValueError("Segment IDs must be unique")
+
+        for segment in self.segments:
+            if not segment.localized_text.strip():
+                raise ValueError(f"Segment {segment.id} has empty localized text")
+
+        return self

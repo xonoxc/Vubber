@@ -35,10 +35,19 @@ class GroqTranscriber(Transcriber):
 
         if output_path.exists():
             raw = json.loads(output_path.read_text())
+
             return TranscriptArtifact(
                 path=output_path,
                 language=raw["language"],
-                segments=[TranscriptSegment(start=s["start"], end=s["end"], text=s["text"]) for s in raw["segments"]],
+                segments=[
+                    TranscriptSegment(
+                        id=idx,
+                        start=s["start"],
+                        end=s["end"],
+                        text=s["text"],
+                    )
+                    for idx, s in enumerate(raw["segments"])
+                ],
             )
 
         try:
@@ -53,11 +62,12 @@ class GroqTranscriber(Transcriber):
 
             segments = [
                 TranscriptSegment(
+                    id=idx,
                     start=seg["start"],
                     end=seg["end"],
                     text=seg["text"],
                 )
-                for seg in response.segments
+                for idx, seg in enumerate(response.segments)
             ]
 
             log.info("transcription.done", language=response.language, segments=len(segments))

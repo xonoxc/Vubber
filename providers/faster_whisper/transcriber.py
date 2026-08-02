@@ -59,11 +59,12 @@ class FasterWhisperTranscriber(Transcriber):
                 language=raw["language"],
                 segments=[
                     TranscriptSegment(
+                        id=idx,
                         start=s["start"],
                         end=s["end"],
                         text=s["text"],
                     )
-                    for s in raw["segments"]
+                    for idx, s in enumerate(raw["segments"])
                 ],
             )
 
@@ -76,11 +77,12 @@ class FasterWhisperTranscriber(Transcriber):
 
             segments = [
                 TranscriptSegment(
+                    id=idx,
                     start=seg.start,
                     end=seg.end,
                     text=seg.text,
                 )
-                for seg in segments_iter
+                for idx, seg in enumerate(segments_iter)
             ]
 
             log.info("transcription.done", language=info.language, segments=len(segments))

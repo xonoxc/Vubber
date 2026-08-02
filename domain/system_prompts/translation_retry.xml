@@ -1,0 +1,28 @@
+RETRY_PROMPT = """\
+<retry>
+Your previous response failed validation and was rejected.
+
+<validation_error>
+{error}
+</validation_error>
+
+<required_ids>
+{expected_ids}
+</required_ids>
+
+<instructions>
+- Regenerate the COMPLETE translation response.
+- Return exactly one translation for every required ID.
+- Preserve every ID exactly.
+- Do not add, remove, duplicate, reorder, or modify IDs.
+- localized_text must not be empty.
+- Translate only the text associated with each ID.
+- Do not include explanations, apologies, markdown, or commentary.
+- Follow the original output schema exactly.
+</instructions>
+
+The previous response is invalid. Do not attempt to patch or continue it.
+Generate a complete replacement response.
+</retry>
+"""
+

@@ -83,6 +83,7 @@ def synthesize(
 
     segments = [
         LocalizedTranscriptSegment(
+            id=s["id"],
             start=s["start"],
             end=s["end"],
             original_text=s["original_text"],

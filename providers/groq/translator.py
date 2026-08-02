@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 import json
-from pathlib import Path
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import Protocol
 
 from groq import Groq
 from pydantic import BaseModel
@@ -11,12 +9,16 @@ from domain.artifacts.localized_transcript import (
     LocalizedTranscriptArtifact,
     LocalizedTranscriptSegment,
 )
-from domain.constants import LOCALIZED_DIR
+from domain.artifacts.transcript import TranscriptArtifact, TranscriptSegment
+from domain.constants import (
+    LOCALIZED_DIR,
+    TRANSLATION_MAX_RETRIES,
+    TRANSLATION_PROMPT,
+    TRANSLATION_RETRY_PROMPT,
+    TRANSLATiON_BATCH_SIZE,
+)
 from domain.ports.translator import Translator
 from utils.logging import get_logger
-
-if TYPE_CHECKING:
-    from domain.artifacts.transcript import TranscriptArtifact, TranscriptSegment
 
 log = get_logger()
 
@@ -25,12 +27,17 @@ class TranslationError(Exception):
     """Raised when translation fails."""
 
 
-_TRANSLATION_PROMPT = Path(__file__).resolve().parents[2].joinpath("domain", "system_prompts", "translation.xml")
-_BATCH_SIZE = 51
+class _HasID(Protocol):
+    id: int
+
+
+class _TranslatedSegment(BaseModel):
+    id: int
+    localized_text: str
 
 
 class _TranslationResponse(BaseModel):
-    segments: list[LocalizedTranscriptSegment]
+    segments: list[_TranslatedSegment]
 
 
 class GroqTranslator(Translator):
@@ -56,17 +63,22 @@ class GroqTranslator(Translator):
                 path=output_path,
                 source_language=raw["source_language"],
                 target_language=raw["target_language"],
-                segments=[LocalizedTranscriptSegment(**s) for s in raw["segments"]],
+                segments=[
+                    LocalizedTranscriptSegment(
+                        **s,
+                    )
+                    for s in raw["segments"]
+                ],
             )
 
         try:
             all_segments: list[LocalizedTranscriptSegment] = []
             segments = transcript.segments
-            total_batches = (len(segments) + _BATCH_SIZE - 1) // _BATCH_SIZE
+            total_batches = (len(segments) + TRANSLATiON_BATCH_SIZE - 1) // TRANSLATiON_BATCH_SIZE
 
-            for i in range(0, len(segments), _BATCH_SIZE):
-                batch_num = i // _BATCH_SIZE + 1
-                batch = segments[i : i + _BATCH_SIZE]
+            for i in range(0, len(segments), TRANSLATiON_BATCH_SIZE):
+                batch_num = i // TRANSLATiON_BATCH_SIZE + 1
+                batch = segments[i : i + TRANSLATiON_BATCH_SIZE]
 
                 log.info(
                     "translation.batch.start",
@@ -93,6 +105,8 @@ class GroqTranslator(Translator):
                 segments=all_segments,
             )
 
+            self._check_all_translated(transcript.segments, translated=artifact.segments)
+
             output_path.write_text(
                 json.dumps(
                     {
@@ -113,22 +127,29 @@ class GroqTranslator(Translator):
                 f"Translation failed: {exc}",
             ) from exc
 
-    def _translate_batch(
+    def _check_all_translated(
+        self,
+        source: Sequence[_HasID],
+        translated: Sequence[_HasID],
+    ) -> None:
+        source_ids = [segment.id for segment in source]
+        translated_ids = [segment.id for segment in translated]
+
+        if source_ids != translated_ids:
+            raise TranslationError(
+                f"Translation segment mismatch: expected={source_ids}, got={translated_ids}",
+            )
+
+    def _request_translation(
         self,
         language: str,
         batch: list[TranscriptSegment],
-    ) -> list[LocalizedTranscriptSegment]:
+        prompt: str | None = None,
+    ) -> list[_TranslatedSegment]:
         user_message = json.dumps(
             {
                 "language": language,
-                "segments": [
-                    {
-                        "start": s.start,
-                        "end": s.end,
-                        "text": s.text,
-                    }
-                    for s in batch
-                ],
+                "segments": [{"id": s.id, "text": s.text} for s in batch],
             },
             ensure_ascii=False,
         )
@@ -136,7 +157,7 @@ class GroqTranslator(Translator):
         response = self._client.chat.completions.create(
             model=self._model,
             messages=[
-                {"role": "system", "content": _TRANSLATION_PROMPT.read_text()},
+                {"role": "system", "content": prompt if prompt is not None else TRANSLATION_PROMPT.read_text()},
                 {
                     "role": "user",
                     "content": f"Translate the following transcript into {self._target_language}.\n\n{user_message}",
@@ -158,24 +179,62 @@ class GroqTranslator(Translator):
                 f"Failed to validate LLM response: {exc}",
             ) from exc
 
-        if len(parsed.segments) != len(batch):
-            log.warning(
-                "translation.segment_count_mismatch",
-                expected=len(batch),
-                got=len(parsed.segments),
-            )
+        return parsed.segments
 
-        translated_by_start: dict[float, str] = {
-            seg.start: seg.localized_text
-            for seg in parsed.segments
-        }
+    def _build_localized_segments(
+        self,
+        source: list[TranscriptSegment],
+        translated: list[_TranslatedSegment],
+    ) -> list[LocalizedTranscriptSegment]:
+
+        by_id = {segment.id: segment for segment in translated}
 
         return [
             LocalizedTranscriptSegment(
-                start=original.start,
-                end=original.end,
-                original_text=original.text,
-                localized_text=translated_by_start.get(original.start, original.text),
+                id=segment.id,
+                start=segment.start,
+                end=segment.end,
+                original_text=segment.text,
+                localized_text=by_id[segment.id].localized_text,
             )
-            for original in batch
+            for segment in source
         ]
+
+    def _translate_batch(
+        self,
+        language: str,
+        batch: list[TranscriptSegment],
+    ) -> list[LocalizedTranscriptSegment]:
+        last_error: TranslationError | None = None
+
+        for attempt in range(1, TRANSLATION_MAX_RETRIES + 1):
+            try:
+                prompt = None
+                if last_error is not None:
+                    prompt = TRANSLATION_RETRY_PROMPT.read_text().format(
+                        error=str(last_error),
+                        expected_ids=[s.id for s in batch],
+                    )
+
+                translated = self._request_translation(language, batch, prompt)
+
+                self._check_all_translated(batch, translated)
+
+                return self._build_localized_segments(
+                    batch,
+                    translated,
+                )
+
+            except TranslationError as exc:
+                last_error = exc
+
+                log.warning(
+                    "translation.retry",
+                    attempt=attempt,
+                    max_attempts=TRANSLATION_MAX_RETRIES,
+                    error=str(exc),
+                )
+
+        raise TranslationError(
+            f"Translation failed after {TRANSLATION_MAX_RETRIES} attempts: {last_error}",
+        )

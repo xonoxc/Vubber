@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 log = get_logger()
 
-_SAMPLE_RATE = 24000
+_SAMPLE_RATE = 48000
 
 
 class SpeechSynthesisError(Exception):
