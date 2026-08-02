@@ -99,14 +99,31 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
                     timeline.append(silence_path)
                     cursor = segment.end
                 else:
-                    self._synthesize_segment(text, mp3_path)
+                    self._synthesize_segment(
+                        text,
+                        mp3_path,
+                    )
+                    generated_mp3_duration = self._get_mp3_duration(audio_path=mp3_path)
+
+                    segment_duration = segment.end - segment.start
+                    if segment_duration <= 0:
+                        raise SpeechSynthesisError(
+                            "Invalid segment duration:",
+                            f"start={segment.start}, end={segment.end}",
+                        )
+
+                    needed_speed = 1.0
+                    if generated_mp3_duration > segment_duration:
+                        needed_speed = generated_mp3_duration / segment_duration
+
                     self._convert_to_wav(
                         mp3_path,
                         wav_path,
+                        speed=needed_speed,
                     )
+
                     timeline.append(wav_path)
-                    duration = self._get_duration(wav_path)
-                    cursor = segment.start + duration
+                    cursor = segment.end
 
             if not timeline:
                 self._generate_silence(
@@ -123,6 +140,13 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
             ),
         )
         return SpeechArtifact(path=output_path)
+
+    # gets the duration for a wav file by path
+    def _get_mp3_duration(self, audio_path: Path) -> float:
+        probe = ffmpeg.probe(str(audio_path))
+        return float(
+            probe["format"]["duration"],
+        )
 
     def _synthesize_segment(self, text: str, output_path: Path) -> None:
         last_exc: Exception | None = None
@@ -146,11 +170,14 @@ class EdgeTTSSynthesizer(SpeechSynthesizer):
             f"Edge-TTS failed after 3 attempts: {last_exc}",
         ) from last_exc
 
-    def _convert_to_wav(self, mp3_path: Path, wav_path: Path) -> None:
+    def _convert_to_wav(self, mp3_path: Path, wav_path: Path, speed: float = 1.0) -> None:
         try:
+            stream = ffmpeg.input(str(mp3_path))
+
+            if speed > 1.0:
+                stream = stream.audio.filter("atempo", speed)
             (
-                ffmpeg.input(str(mp3_path))
-                .output(
+                stream.output(
                     str(wav_path),
                     acodec="pcm_s16le",
                     ar=_SAMPLE_RATE,
