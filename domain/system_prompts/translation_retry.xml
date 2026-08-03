@@ -1,4 +1,3 @@
-RETRY_PROMPT = """\
 <retry>
 Your previous response failed validation and was rejected.
 
@@ -19,10 +18,12 @@ Your previous response failed validation and was rejected.
 - Translate only the text associated with each ID.
 - Do not include explanations, apologies, markdown, or commentary.
 - Follow the original output schema exactly.
+- Output segments must contain only the keys id and localized_text.
+- Never include the text, start, or end keys in the output.
+- Return a complete valid json object.
 </instructions>
 
 The previous response is invalid. Do not attempt to patch or continue it.
 Generate a complete replacement response.
 </retry>
-"""
 

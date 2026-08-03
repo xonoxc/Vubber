@@ -1,5 +1,26 @@
 from typing import Any
 
+import httpx
+
+
+class GroqError(Exception):
+    pass
+
+
+class APIError(GroqError):
+    pass
+
+
+class APIStatusError(APIError):
+    status_code: int
+    response: httpx.Response
+    body: object | None
+
+
+class RateLimitError(APIStatusError):
+    pass
+
+
 class ChatCompletionMessage:
     content: str | None
 

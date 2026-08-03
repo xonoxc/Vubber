@@ -1,8 +1,10 @@
 import json
+import re
+import time
 from collections.abc import Sequence
 from typing import Protocol
 
-from groq import Groq
+from groq import Groq, RateLimitError
 from pydantic import BaseModel
 
 from domain.artifacts.localized_transcript import (
@@ -14,6 +16,8 @@ from domain.constants import (
     LOCALIZED_DIR,
     TRANSLATION_MAX_RETRIES,
     TRANSLATION_PROMPT,
+    TRANSLATION_RATE_LIMIT_MAX_DELAY_SECONDS,
+    TRANSLATION_RATE_LIMIT_MAX_RETRIES,
     TRANSLATION_RETRY_PROMPT,
     TRANSLATiON_BATCH_SIZE,
 )
@@ -25,6 +29,10 @@ log = get_logger()
 
 class TranslationError(Exception):
     """Raised when translation fails."""
+
+
+class TranslationRateLimitError(TranslationError):
+    """Raised when translation keeps failing on rate limits."""
 
 
 class _HasID(Protocol):
@@ -144,7 +152,8 @@ class GroqTranslator(Translator):
         self,
         language: str,
         batch: list[TranscriptSegment],
-        prompt: str | None = None,
+        retry_context: str | None = None,
+        temperature: float = 0.0,
     ) -> list[_TranslatedSegment]:
         user_message = json.dumps(
             {
@@ -154,23 +163,11 @@ class GroqTranslator(Translator):
             ensure_ascii=False,
         )
 
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": prompt if prompt is not None else TRANSLATION_PROMPT.read_text()},
-                {
-                    "role": "user",
-                    "content": f"Translate the following transcript into {self._target_language}.\n\n{user_message}",
-                },
-            ],
-            response_format={
-                "type": "json_object",
-            },
-            temperature=0,
-            max_tokens=8192,
-        )
+        system_content = TRANSLATION_PROMPT.read_text()
+        if retry_context is not None:
+            system_content = f"{system_content}\n\n{retry_context}"
 
-        raw = response.choices[0].message.content or ""
+        raw = self._create_completion(system_content, user_message, temperature)
 
         try:
             parsed = _TranslationResponse.model_validate_json(raw)
@@ -180,6 +177,74 @@ class GroqTranslator(Translator):
             ) from exc
 
         return parsed.segments
+
+    def _create_completion(
+        self,
+        system_content: str,
+        user_message: str,
+        temperature: float,
+    ) -> str:
+        last_error: RateLimitError | None = None
+
+        for attempt in range(1, TRANSLATION_RATE_LIMIT_MAX_RETRIES + 1):
+            try:
+                response = self._client.chat.completions.create(
+                    model=self._model,
+                    messages=[
+                        {"role": "system", "content": system_content},
+                        {
+                            "role": "user",
+                            "content": f"Translate the following transcript into {self._target_language}.\n\n{user_message}",
+                        },
+                    ],
+                    response_format={
+                        "type": "json_object",
+                    },
+                    temperature=temperature,
+                    max_tokens=8192,
+                )
+                return response.choices[0].message.content or ""
+            except RateLimitError as exc:
+                last_error = exc
+                delay = self._rate_limit_delay(exc)
+                if attempt == TRANSLATION_RATE_LIMIT_MAX_RETRIES:
+                    break
+
+                log.warning(
+                    "translation.rate_limit",
+                    attempt=attempt,
+                    max_attempts=TRANSLATION_RATE_LIMIT_MAX_RETRIES,
+                    delay=delay,
+                    error=str(exc),
+                )
+                time.sleep(delay)
+
+        raise TranslationRateLimitError(
+            f"Translation rate limited after {TRANSLATION_RATE_LIMIT_MAX_RETRIES} attempts: {last_error}",
+        )
+
+    @staticmethod
+    def _rate_limit_delay(exc: RateLimitError) -> float:
+        try:
+            header = exc.response.headers.get("retry-after")
+            if header is not None:
+                delay = float(header)
+            else:
+                message = str(exc)
+                match = re.search(
+                    r"try again in\s+(?:(\d+)m\s*)?(\d+(?:\.\d+)?)s",
+                    message,
+                )
+                if match is None:
+                    delay = 30.0
+                else:
+                    minutes = float(match.group(1) or 0)
+                    seconds = float(match.group(2))
+                    delay = minutes * 60 + seconds
+        except (AttributeError, TypeError, ValueError):
+            delay = 30.0
+
+        return min(delay, TRANSLATION_RATE_LIMIT_MAX_DELAY_SECONDS)
 
     def _build_localized_segments(
         self,
@@ -209,14 +274,19 @@ class GroqTranslator(Translator):
 
         for attempt in range(1, TRANSLATION_MAX_RETRIES + 1):
             try:
-                prompt = None
+                retry_context = None
                 if last_error is not None:
-                    prompt = TRANSLATION_RETRY_PROMPT.read_text().format(
+                    retry_context = TRANSLATION_RETRY_PROMPT.read_text().format(
                         error=str(last_error),
                         expected_ids=[s.id for s in batch],
                     )
 
-                translated = self._request_translation(language, batch, prompt)
+                translated = self._request_translation(
+                    language,
+                    batch,
+                    retry_context=retry_context,
+                    temperature=0.0 if attempt == 1 else 0.2 * attempt,
+                )
 
                 self._check_all_translated(batch, translated)
 
@@ -224,6 +294,9 @@ class GroqTranslator(Translator):
                     batch,
                     translated,
                 )
+
+            except TranslationRateLimitError:
+                raise
 
             except TranslationError as exc:
                 last_error = exc

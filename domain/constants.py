@@ -36,6 +36,10 @@ def create_system_prompt_path(prompt_name: str) -> Path:
 TRANSLATION_PROMPT = create_system_prompt_path("translation")
 TRANSLATION_RETRY_PROMPT = create_system_prompt_path("translation_retry")
 
-TRANSLATiON_BATCH_SIZE = 51
+TRANSLATiON_BATCH_SIZE = 20
 
 TRANSLATION_MAX_RETRIES = 3
+
+TRANSLATION_RATE_LIMIT_MAX_RETRIES = 5
+
+TRANSLATION_RATE_LIMIT_MAX_DELAY_SECONDS = 300

@@ -18,13 +18,13 @@ Translate every transcript segment into natural, conversational English suitable
 <rule>Translate every segment.</rule>
 <rule>Preserve meaning and emotion.</rule>
 <rule>Prefer concise spoken English.</rule>
-<rule>Preserve timestamps exactly.</rule>
 <rule>Preserve segment ordering.</rule>
 <rule>Never merge segments.</rule>
 <rule>Never split segments.</rule>
 <rule>Never omit segments.</rule>
 <rule>Never invent dialogue.</rule>
 <rule>If translation is uncertain, copy the original text into localized_text.</rule>
+<rule>Never echo or copy the input fields.</rule>
 <rule>Never explain uncertainty.</rule>
 <rule>Never apologize.</rule>
 <rule>Never mention language detection.</rule>
@@ -34,15 +34,18 @@ Translate every transcript segment into natural, conversational English suitable
 </rules>
 
 <output_contract>
-Return exactly one valid JSON object.
+Return exactly one valid json object.
 
 The output must contain exactly the same number of segments as the input.
 
-Each segment must contain only:
+Each output segment must contain only:
 
-- start
-- end
-- localized_text
+- id (integer, must match the input id exactly)
+- localized_text (the translated text)
+
+Never include the text, start, or end keys in the output.
+
+Every output segment must have a localized_text value.
 </output_contract>
 
 <example>
@@ -52,8 +55,7 @@ Input
 {
   "segments": [
     {
-      "start": 0.0,
-      "end": 1.9,
+      "id": 0,
       "text": "नमस्ते दोस्तों"
     }
   ]
@@ -64,8 +66,7 @@ Output
 {
   "segments": [
     {
-      "start": 0.0,
-      "end": 1.9,
+      "id": 0,
       "localized_text": "Hello everyone."
     }
   ]
@@ -74,7 +75,7 @@ Output
 </example>
 
 <final_instruction>
-Respond with only the JSON object.
+Respond with only the json object.
 
 No additional text.
 </final_instruction>
