@@ -12,12 +12,12 @@ def _clean_format(
     event = str(event_dict.get("event", ""))
     keys = {k: v for k, v in event_dict.items() if k not in {"event", "log_level"}}
 
-    parts = [f"[{event}]"]
+    return " ".join([
+        f"[{event}]",
+        f"{k}={v}" for k, v in keys.items()
+    ])
 
-    for k, v in keys.items():
-        parts.append(f"{k}={v}")
 
-    return " ".join(parts)
 
 
 def configure_logging() -> None:

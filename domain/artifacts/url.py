@@ -2,6 +2,8 @@ from urllib.parse import parse_qs, urlparse
 
 from pydantic import AnyHttpUrl, BaseModel, HttpUrl, field_validator
 
+VALID_YT_DOMAINS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
+
 
 class YoutubeURL(BaseModel):
     value: HttpUrl
@@ -11,10 +13,8 @@ class YoutubeURL(BaseModel):
     def validate_youtube(cls, value: AnyHttpUrl) -> AnyHttpUrl:
         host = value.host or ""
 
-        if host not in {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}:
-            raise ValueError(
-                "Only YouTube URLs are supported.",
-            )
+        if host not in VALID_YT_DOMAINS:
+            raise ValueError("Only YouTube URLs are supported.")
 
         return value
 
@@ -26,6 +26,8 @@ class YoutubeURL(BaseModel):
         if host == "youtu.be":
             return path.strip("/")
 
-        parsed = urlparse(str(self.value))
-        params = parse_qs(parsed.query)
+        parsed = urlparse(url=str(self.value))
+        params = parse_qs(
+            parsed.query,
+        )
         return params["v"][0]
