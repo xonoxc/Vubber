@@ -47,7 +47,13 @@ def dub(
     sequence = (
         pipeline.add(DownloadStage(YtDlpDownloader()))
         .add(AudioExtractionStage(FFmpegAudioExtractor()))
-        .add(TranscriptionStage(GroqTranscriber(api_key=os.getenv("GROQ_API_KEY"))))
+        .add(
+            TranscriptionStage(
+                GroqTranscriber(
+                    api_key=os.getenv("GROQ_API_KEY"),
+                )
+            )
+        )
         .add(TranslationStage(GroqTranslator(api_key=os.getenv("GROQ_API_KEY"))))
         .add(SpeechSynthesisStage(EdgeTTSSynthesizer(voice=voice_name)))
         .add(mux_stage)
