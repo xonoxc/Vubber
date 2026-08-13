@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import ffmpeg
 
 from domain.artifacts.video_artifact import VideoArtifact
-from domain.constants import OUTPUT_DIR
+from config.constants import OUTPUT_DIR
 from domain.ports.video_muxer import VideoMuxer
 
 if TYPE_CHECKING:
@@ -40,8 +40,7 @@ class FFmpegVideoMuxer(VideoMuxer):
 
         try:
             (
-                ffmpeg
-                .output(
+                ffmpeg.output(
                     video_input.video,
                     speech_input.audio,
                     filename=str(output_path),

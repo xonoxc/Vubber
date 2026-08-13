@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 from groq import Groq
 
+from config.constants import TRANSCRIPTS_DIR
 from domain.artifacts.transcript import TranscriptArtifact, TranscriptSegment
-from domain.constants import TRANSCRIPTS_DIR
 from domain.ports.transcriber import Transcriber
 from utils.logging import get_logger
 
@@ -69,6 +69,11 @@ class GroqTranscriber(Transcriber):
                 )
                 for idx, seg in enumerate(response.segments)
             ]
+
+            log.debug(
+                "first transcription segment",
+                segment=segments[0] if segments else None,
+            )
 
             log.info("transcription.done", language=response.language, segments=len(segments))
 

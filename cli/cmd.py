@@ -5,9 +5,9 @@ from pathlib import Path
 
 import typer
 
+from config.constants import ARTIFACTS_ROOT
 from domain.artifacts.localized_transcript import LocalizedTranscriptArtifact, LocalizedTranscriptSegment
 from domain.artifacts.url import YoutubeURL
-from domain.constants import ARTIFACTS_ROOT
 from pipeline.cons import Pipeline
 from providers.edge_tts.synthesizer import EdgeTTSSynthesizer
 from providers.ffmpeg.extractor import FFmpegAudioExtractor

@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
 
+from config.constants import VIDEOS_DIR
 from domain.artifacts.video_artifact import VideoArtifact
-from domain.constants import VIDEOS_DIR
 from domain.ports.downloader import Downloader
 
 if TYPE_CHECKING:

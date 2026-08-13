@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 from faster_whisper import WhisperModel
 
+from config.constants import TRANSCRIPTS_DIR
 from domain.artifacts.transcript import TranscriptArtifact, TranscriptSegment
-from domain.constants import TRANSCRIPTS_DIR
 from domain.ports.transcriber import Transcriber
 from utils.logging import get_logger
 

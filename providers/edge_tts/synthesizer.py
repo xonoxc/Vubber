@@ -8,8 +8,8 @@ import edge_tts
 import edge_tts.exceptions
 import ffmpeg
 
+from config.constants import SPEECH_DIR
 from domain.artifacts.speech_artifact import SpeechArtifact
-from domain.constants import SPEECH_DIR
 from domain.ports.speech_synthesizer import SpeechSynthesizer
 from utils.logging import get_logger
 

@@ -7,12 +7,7 @@ from typing import Protocol
 from groq import Groq, RateLimitError
 from pydantic import BaseModel
 
-from domain.artifacts.localized_transcript import (
-    LocalizedTranscriptArtifact,
-    LocalizedTranscriptSegment,
-)
-from domain.artifacts.transcript import TranscriptArtifact, TranscriptSegment
-from domain.constants import (
+from config.constants import (
     LOCALIZED_DIR,
     TRANSLATION_MAX_RETRIES,
     TRANSLATION_PROMPT,
@@ -21,6 +16,11 @@ from domain.constants import (
     TRANSLATION_RETRY_PROMPT,
     TRANSLATiON_BATCH_SIZE,
 )
+from domain.artifacts.localized_transcript import (
+    LocalizedTranscriptArtifact,
+    LocalizedTranscriptSegment,
+)
+from domain.artifacts.transcript import TranscriptArtifact, TranscriptSegment
 from domain.ports.translator import Translator
 from utils.logging import get_logger
 

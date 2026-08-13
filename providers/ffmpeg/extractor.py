@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 
 import ffmpeg
 
+from config.constants import AUDIO_DIR
 from domain.artifacts.audio_artifact import AudioArtifact
-from domain.constants import AUDIO_DIR
 from domain.ports.audio_extractor import AudioExtractor
 
 if TYPE_CHECKING:
