@@ -11,9 +11,11 @@ from domain.artifacts.url import YoutubeURL
 from pipeline.cons import Pipeline
 from providers.edge_tts.synthesizer import EdgeTTSSynthesizer
 from providers.ffmpeg.extractor import FFmpegAudioExtractor
+from providers.ffmpeg.ffmpeg_audio_splitter import FFempegAudioSplitter
 from providers.ffmpeg.muxer import FFmpegVideoMuxer
 from providers.groq.transcriber import GroqTranscriber
 from providers.groq.translator import GroqTranslator
+from providers.vad.vad_provider import SileroVad
 from providers.yt_downloader import YtDlpDownloader
 from stages.audio_extraction_stage import AudioExtractionStage
 from stages.download_stage import DownloadStage
@@ -21,6 +23,8 @@ from stages.mux_stage import MuxStage
 from stages.speech_synthesis_stage import SpeechSynthesisStage
 from stages.transcription_stage import TranscriptionStage
 from stages.translation_stage import TranslationStage
+from stages.vad_stage import VADStage
+from stages.voice_segment_split_stage import VoiceSegmentsSplitStage
 from utils.logging import get_logger
 
 log = get_logger()
@@ -47,6 +51,8 @@ def dub(
     sequence = (
         pipeline.add(DownloadStage(YtDlpDownloader()))
         .add(AudioExtractionStage(FFmpegAudioExtractor()))
+        .add(VADStage(SileroVad()))
+        .add(VoiceSegmentsSplitStage(FFempegAudioSplitter()))
         .add(
             TranscriptionStage(
                 GroqTranscriber(

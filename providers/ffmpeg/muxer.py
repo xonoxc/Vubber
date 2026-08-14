@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 
 import ffmpeg
 
-from domain.artifacts.video_artifact import VideoArtifact
 from config.constants import OUTPUT_DIR
+from domain.artifacts.video_artifact import VideoArtifact
 from domain.ports.video_muxer import VideoMuxer
 
 if TYPE_CHECKING:

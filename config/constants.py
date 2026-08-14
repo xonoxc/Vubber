@@ -20,12 +20,16 @@ SPEECH_DIR = ARTIFACTS_ROOT.joinpath("speech")
 OUTPUT_DIR = ARTIFACTS_ROOT.joinpath("output")
 
 
+AUDIO_SPEECH_VOICE_SEGMENTS_PATH = AUDIO_DIR.joinpath("voice_segments")
+
+
 # helper to create system prompt path
 def create_system_prompt_path(prompt_name: str) -> Path:
     return (
         Path(__file__)
         .resolve()
-        .parent.joinpath(
+        .parent.parent.joinpath(
+            "domain",
             "system_prompts",
             f"{prompt_name}.xml",
         )

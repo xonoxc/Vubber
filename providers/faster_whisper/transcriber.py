@@ -11,7 +11,7 @@ from domain.ports.transcriber import Transcriber
 from utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from domain.artifacts.audio_artifact import AudioArtifact
+    from domain.artifacts.audio_artifact import VoiceChunksArtifact
 
 log = get_logger()
 
@@ -45,12 +45,12 @@ class FasterWhisperTranscriber(Transcriber):
             log.info("transcription.model.loaded", model=self._model_size)
         return self._model
 
-    def transcribe(self, audio: AudioArtifact) -> TranscriptArtifact:
+    def transcribe(self, artifacts: VoiceChunksArtifact) -> TranscriptArtifact:
         TRANSCRIPTS_DIR.mkdir(
             parents=True,
             exist_ok=True,
         )
-        output_path = TRANSCRIPTS_DIR.joinpath(f"{audio.path.stem}.json")
+        output_path = TRANSCRIPTS_DIR.joinpath(f"{artifacts.path.stem}.json")
 
         if output_path.exists():
             raw = json.loads(output_path.read_text())
@@ -68,34 +68,48 @@ class FasterWhisperTranscriber(Transcriber):
                 ],
             )
 
+        chunk_paths = sorted(
+            artifacts.path.glob("*.wav"),
+            key=lambda p: int(p.stem.rsplit("_", 1)[-1]),
+        )
+
         try:
             model = self._ensure_model()
-            log.info("transcription.start", file=audio.path.name)
-            segments_iter, info = model.transcribe(
-                str(audio.path),
-            )
 
-            segments = [
-                TranscriptSegment(
-                    id=idx,
-                    start=seg.start,
-                    end=seg.end,
-                    text=seg.text,
+            segments: list[TranscriptSegment] = []
+            language = ""
+            for idx, chunk_path in enumerate(chunk_paths):
+                if idx >= len(artifacts.regions):
+                    log.warning("transcription.chunk_out_of_range", idx=idx)
+                    continue
+
+                start, end = artifacts.regions[idx]
+
+                log.info(
+                    "transcription.chunk",
+                    file=chunk_path.name,
+                    start=start,
+                    end=end,
                 )
-                for idx, seg in enumerate(segments_iter)
-            ]
 
-            log.info("transcription.done", language=info.language, segments=len(segments))
+                segments_iter, info = model.transcribe(
+                    str(chunk_path),
+                )
 
-            TRANSCRIPTS_DIR.mkdir(
-                parents=True,
-                exist_ok=True,
-            )
-            output_path = TRANSCRIPTS_DIR.joinpath(f"{audio.path.stem}.json")
+                text = " ".join(seg.text.strip() for seg in segments_iter).strip()
+
+                language = info.language
+
+                if text:
+                    segments.append(
+                        TranscriptSegment(id=idx, start=start, end=end, text=text),
+                    )
+
+            log.info("transcription.done", language=language, segments=len(segments))
 
             artifact = TranscriptArtifact(
                 path=output_path,
-                language=info.language,
+                language=language,
                 segments=segments,
             )
 
@@ -124,3 +138,4 @@ class FasterWhisperTranscriber(Transcriber):
             raise TranscriptionError(
                 f"Transcription failed: {exc}",
             ) from exc
+

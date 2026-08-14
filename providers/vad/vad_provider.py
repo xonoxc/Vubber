@@ -3,12 +3,14 @@ from silero_vad import get_speech_timestamps, load_silero_vad, read_audio
 from domain.artifacts.audio_artifact import AudioArtifact
 from domain.ports.vad import VADer
 
+type SpeechReigon = tuple[float, float]
+
 
 class SileroVad(VADer):
     def load_vad_model(self) -> None:
         self.model = load_silero_vad()
 
-    def detect(self, audio: AudioArtifact) -> list[tuple[float, float]]:
+    def detect(self, audio: AudioArtifact) -> list[SpeechReigon]:
         wav = read_audio(str(audio.path))
 
         speech_timestamps = get_speech_timestamps(

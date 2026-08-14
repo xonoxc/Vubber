@@ -11,7 +11,7 @@ from domain.ports.transcriber import Transcriber
 from utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from domain.artifacts.audio_artifact import AudioArtifact
+    from domain.artifacts.audio_artifact import VoiceChunksArtifact
 
 log = get_logger()
 
@@ -29,9 +29,9 @@ class GroqTranscriber(Transcriber):
         self._client = Groq(api_key=api_key)
         self._model = model
 
-    def transcribe(self, audio: AudioArtifact) -> TranscriptArtifact:
+    def transcribe(self, artifacts: VoiceChunksArtifact) -> TranscriptArtifact:
         TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
-        output_path = TRANSCRIPTS_DIR.joinpath(f"{audio.path.stem}.json")
+        output_path = TRANSCRIPTS_DIR.joinpath(f"{artifacts.path.stem}.json")
 
         if output_path.exists():
             raw = json.loads(output_path.read_text())
@@ -50,61 +50,66 @@ class GroqTranscriber(Transcriber):
                 ],
             )
 
-        try:
-            log.info("transcription.start", file=audio.path.name, model=self._model)
+        chunk_paths = sorted(
+            artifacts.path.glob("*.wav"),
+            key=lambda p: int(p.stem.rsplit("_", 1)[-1]),
+        )
 
-            with open(audio.path, "rb") as f:
-                response = self._client.audio.transcriptions.create(
-                    file=(audio.path.name, f.read()),
-                    model=self._model,
-                    response_format="verbose_json",
+        segments: list[TranscriptSegment] = []
+        language = ""
+        for idx, chunk_path in enumerate(chunk_paths):
+            if idx >= len(artifacts.regions):
+                log.warning("transcription.chunk_out_of_range", idx=idx)
+                continue
+
+            start, end = artifacts.regions[idx]
+
+            log.info("transcription.chunk", file=chunk_path.name, start=start, end=end)
+
+            try:
+                with open(chunk_path, "rb") as f:
+                    response = self._client.audio.transcriptions.create(
+                        file=(chunk_path.name, f.read()),
+                        model=self._model,
+                        response_format="verbose_json",
+                    )
+            except Exception as exc:
+                raise TranscriptionError(
+                    f"Transcription failed for {chunk_path.name}: {exc}",
+                ) from exc
+
+            language = response.language
+            text = response.text.strip()
+
+            if text:
+                segments.append(
+                    TranscriptSegment(id=idx, start=start, end=end, text=text),
                 )
 
-            segments = [
-                TranscriptSegment(
-                    id=idx,
-                    start=seg["start"],
-                    end=seg["end"],
-                    text=seg["text"],
-                )
-                for idx, seg in enumerate(response.segments)
-            ]
+        log.info("transcription.done", language=language, segments=len(segments))
 
-            log.debug(
-                "first transcription segment",
-                segment=segments[0] if segments else None,
-            )
+        artifact = TranscriptArtifact(
+            path=output_path,
+            language=language,
+            segments=segments,
+        )
 
-            log.info("transcription.done", language=response.language, segments=len(segments))
+        output_path.write_text(
+            json.dumps(
+                {
+                    "path": str(artifact.path),
+                    "language": artifact.language,
+                    "segments": [
+                        {
+                            "start": s.start,
+                            "end": s.end,
+                            "text": s.text,
+                        }
+                        for s in artifact.segments
+                    ],
+                },
+                indent=2,
+            ),
+        )
 
-            artifact = TranscriptArtifact(
-                path=output_path,
-                language=response.language,
-                segments=segments,
-            )
-
-            output_path.write_text(
-                json.dumps(
-                    {
-                        "path": str(artifact.path),
-                        "language": artifact.language,
-                        "segments": [
-                            {
-                                "start": s.start,
-                                "end": s.end,
-                                "text": s.text,
-                            }
-                            for s in artifact.segments
-                        ],
-                    },
-                    indent=2,
-                ),
-            )
-
-            return artifact
-        except TranscriptionError:
-            raise
-        except Exception as exc:
-            raise TranscriptionError(
-                f"Transcription failed: {exc}",
-            ) from exc
+        return artifact
